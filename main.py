@@ -10,7 +10,6 @@ class WeatherBot:
         self.bot = telebot.TeleBot(bot_token)
         self.API = openweathermap_api_key
 
-        # перевод
         with open('weather_data.json', 'r', encoding='utf-8') as json_file:
             self.weather_mapping = json.load(json_file)
 
@@ -18,18 +17,21 @@ class WeatherBot:
         self.last_city = None
         self.scheduled_message = None
 
-        # Словарь для отслеживания подключенных пользователей и состояния их рассылки
-        self.subscribed_users = {}
-
-        # Атрибут для отслеживания состояния рассылки
+        # состояние рассылки
         self.sending_weather = False
 
-        # Инициализируем клавиатуру для кнопок
+        # словарь пользователей
+        self.subscribed_users = {}
+
+        # кнопки
         self.markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
         self.markup.add(telebot.types.KeyboardButton("Присылать каждый час"))
         # self.markup.add(telebot.types.KeyboardButton("Стоп"))
         self.markup.add(telebot.types.KeyboardButton("Погода на 3 дня"))
         self.markup.add(telebot.types.KeyboardButton("Завтра"))
+
+        self.markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
+        self.update_keyboard()
 
         @self.bot.message_handler(commands=['start'])
         def start(message):
@@ -86,11 +88,8 @@ class WeatherBot:
                     self.sending_weather = False
                     if message.chat.id in self.subscribed_users:
                         self.subscribed_users[message.chat.id] = False
-                    # клава
-                    markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
-                    markup.add(telebot.types.KeyboardButton("Присылать каждый час"))
-                    markup.add(telebot.types.KeyboardButton("Погода на 3 дня"))
-                    markup.add(telebot.types.KeyboardButton("Завтра"))
+                    self.update_keyboard()  # Обновляем клавиатуру после остановки рассылки
+                    markup = telebot.types.ReplyKeyboardRemove()
                     self.bot.send_message(message.chat.id, "Рассылка погоды остановлена.", reply_markup=markup)
                 else:
                     self.bot.send_message(message.chat.id, "Рассылка погоды уже остановлена.")
@@ -99,14 +98,10 @@ class WeatherBot:
                     self.bot.send_message(message.chat.id, "Рассылка уже запущена!")
                 else:
                     self.sending_weather = True
-                    # Уберите клавиатуру с кнопкой "Присылать каждый час" и добавьте кнопку "Стоп"
-                    markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
-                    markup.add(telebot.types.KeyboardButton("Стоп"))
-                    markup.add(telebot.types.KeyboardButton("Погода на 3 дня"))
-                    markup.add(telebot.types.KeyboardButton("Завтра"))
+                    self.update_keyboard()  # Обновляем клавиатуру при запуске рассылки
                     self.bot.send_message(message.chat.id,
                                           "Рассылка погоды запущена. Погода будет присылаться каждый час.",
-                                          reply_markup=markup)
+                                          reply_markup=self.markup)
                     self.subscribed_users[message.chat.id] = True
                     self.send_weather_periodically(message.chat.id)
             else:
@@ -140,6 +135,16 @@ class WeatherBot:
                                     f'🍃 Скорость ветра: {wind_speed} м/с')
                     return weather_info
         return None
+
+    # клавиша стоп не пропадает если рассылка True
+    def update_keyboard(self):
+        self.markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
+        if self.sending_weather:
+            self.markup.add(telebot.types.KeyboardButton("Стоп"))
+        else:
+            self.markup.add(telebot.types.KeyboardButton("Присылать каждый час"))
+        self.markup.add(telebot.types.KeyboardButton("Погода на 3 дня"))
+        self.markup.add(telebot.types.KeyboardButton("Завтра"))
 
     # скан
     def send_weather(self, chat_id, city):
